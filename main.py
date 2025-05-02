@@ -1,35 +1,39 @@
+from openai import OpenAI, RateLimitError
 from dotenv import load_dotenv
-from openai import OpenAI
 import ast
 import os
 
 # Load API key from .env
 load_dotenv()
+# Initialize OpenAI client
 client = OpenAI(
   api_key=os.getenv("OPENAI_API_KEY")
 )
 
 # Generate a docstring using OpenAI LLM (NumPy + PEP 257 style)
 def generate_docstring(code_snippet: str) -> str:
-    completion = client.chat.completions.create(
-        model="gpt-3.5-turbo"y.5-turbo", # USE DIFFERENT MODEL TO AVOID PLAN AND BILLING DETAILS
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are an expert Python assistant. "
-                    "Write a concise, complete Python docstring following PEP 257 and NumPy style. "
-                    "Include 'Args' and 'Returns' sections if applicable."
-                )
-            },
-            {
-                "role": "user",
-                "content": f"Here is a function:\n\n{code_snippet}\n\nWrite the docstring only."
-            }
-        ],
-        temperature=0.2
-    )
-    return completion.choices[0].message.content.strip()
+    try:
+        completion = client.chat.completions.create(
+            model="gpt-3.5-turbo", # USE DIFFERENT MODEL TO AVOID PLAN AND BILLING DETAILS
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an expert Python assistant. "
+                        "Write a concise, complete Python docstring following PEP 257 and NumPy style. "
+                        "Include 'Args' and 'Returns' sections if applicable."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": f"Here is a function:\n\n{code_snippet}\n\nWrite the docstring only."
+                }
+            ],
+            temperature=0.2
+        )
+        return completion.choices[0].message.content.strip()
+    except RateLimitError:
+        print("Rate limit exceeded. Please try again later.")
 
 # Get source code for an AST node
 def get_function_source(source_code, node):
@@ -62,6 +66,9 @@ if __name__ == "__main__":
     for node in definitions:
         if not has_docstring(node):
             func_code = get_function_source(source, node)
-            docstring = generate_docstring(func_code)
             print(f"\nFunction: {node.name}")
-            print("Generated Docstring:\n" + docstring)
+            docstring = generate_docstring(func_code)
+            if docstring is not None:
+                print("Generated Docstring:\n" + docstring)
+            else:
+                print(f"Failed to generate docstring for function: {node.name}")
